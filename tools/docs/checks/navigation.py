@@ -286,11 +286,19 @@ def _validate_recipe_routes(repo_root: Path) -> None:
         raise ValueError(f"Duplicate model names within one provider index: {duplicates}")
     docs_config = yaml.safe_load((repo_root / "docs" / "fern" / "docs.yml").read_text(encoding="utf-8"))
     redirects = {redirect["source"]: redirect["destination"] for redirect in docs_config["redirects"]}
+    config_path = repo_root / "docs/fern/versions/nightly.yml"
+    navigation = yaml.safe_load(config_path.read_text(encoding="utf-8"))["navigation"]
+    navigated_routes = _collect_fern_routes(navigation, config_dir=config_path.parent)
     destinations_by_group: dict[tuple[str, tuple[str, str]], set[str]] = {}
     destination_groups: dict[tuple[str, str], set[tuple[str, str]]] = {}
     missing = []
     for release in releases:
         destination = model_card_routes[release.hf_model_id, release.model_type]
+        if not destination.startswith("/model-coverage/"):
+            # The resolver verifies that this guide documents the exact checkpoint.
+            if release.model_type not in {"Embedding", "Reranking"} or destination not in navigated_routes:
+                raise ValueError(f"Invalid retrieval training guide destination: {destination}")
+            continue
         provider_href = destination.rsplit("/", 1)[0]
         if destination not in index_routes.get(provider_href, set()):
             missing.append((release.model_type, release.hf_model_id, f"provider index card {destination}"))

@@ -1,50 +1,37 @@
-# Train Nemotron 3.5 8B Embedding and Reranking Models
+# Fine-Tune Nemotron 3.5 8B Embedding and Reranking Models
 
-Use NeMo AutoModel retrieval recipes to train the Nemotron 3.5 8B embedding and
-reranking models. Each example accepts text queries paired with documents
+Use NeMo AutoModel retrieval recipes to fine-tune the released Nemotron 3.5 8B
+embedding and reranking checkpoints on your data. Each example accepts text queries paired with documents
 containing an image, text, or both.
 
-Choose the configuration for your model and training stage:
+Choose the configuration for your model:
 
-| Model | Configuration | Training Stage |
+| Model | Configuration | Fine-Tuning Scope |
 | --- | --- | --- |
 | [Nemotron-3.5-Embed-8B-BF16](https://huggingface.co/nvidia/Nemotron-3.5-Embed-8B-BF16) | [embed_8b_multimodal.yaml](embed_8b_multimodal.yaml) | Contrastive training of the vision encoder and projector with a frozen language model |
-| [Nemotron-3.5-Rerank-8B-BF16](https://huggingface.co/nvidia/Nemotron-3.5-Rerank-8B-BF16) | [rerank_8b_multimodal.yaml](rerank_8b_multimodal.yaml) | Multimodal training from a text-trained reranker, updating all parameters with listwise cross-entropy |
+| [Nemotron-3.5-Rerank-8B-BF16](https://huggingface.co/nvidia/Nemotron-3.5-Rerank-8B-BF16) | [rerank_8b_multimodal.yaml](rerank_8b_multimodal.yaml) | Fine-tuning all parameters with listwise cross-entropy |
 
-These are representative stage examples. The model cards document the released
-models' training methods and data sources. The
-[Nemotron-3-Embed-8B dataset overview](https://huggingface.co/nvidia/Nemotron-3-Embed-8B-BF16#dataset-overview)
-describes the earlier text training.
+These examples adapt existing checkpoints. They do not reproduce the original
+training pipeline, dataset mixtures, or reported results. Refer to the linked
+model cards for the released models' training methods and data sources.
 
-## Prepare the Starting Checkpoint
+## Prerequisites
 
 Follow the [installation guide](../../../docs/guides/installation.mdx), including
 vision dependencies, Transformer Engine, and FlashAttention 2. The launch command
 below uses eight NVIDIA GPUs with BF16 support on one node. Memory requirements
 depend on the model and document lengths.
 
-Provide a local Hugging Face checkpoint with its configuration, weights, tokenizer,
-and image processor. Select the initialization for the stage:
+The configurations load the released Hugging Face checkpoints directly, including
+their tokenizer and image processor. No checkpoint assembly or earlier text
+training is required. To continue from a local checkpoint, override both
+`model.pretrained_model_name_or_path` and `tokenizer.pretrained_model_name_or_path`
+with its directory.
 
-- **Embed 8B:** Manually assemble a local Mistral3 multimodal checkpoint before
-  training. Start with
-  [Ministral-3-8B-Instruct-2512-BF16](https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512-BF16)
-  and replace its language-model component with weights from
-  [Nemotron-3-Embed-8B-BF16](https://huggingface.co/nvidia/Nemotron-3-Embed-8B-BF16).
-  Retain the compatible Mistral3 vision and multimodal components. This example
-  does not perform checkpoint assembly.
-- **Rerank 8B:** A complete Mistral3 reranker checkpoint from text training,
-  including the trained scoring head, vision encoder, and projector.
-
-The examples begin at these checkpoints. Checkpoint assembly and earlier text
-training are separate steps. Using a released Nemotron 3.5 checkpoint as the
-starting checkpoint performs continued training.
-
-The embedding configuration assumes the assembled checkpoint and sets
-`freeze_language_model: true` to preserve the trained Nemotron text component
-while updating the vision encoder and multimodal projector. If you start from an
-unmodified Mistral3 checkpoint, set `freeze_language_model: false` and fine-tune
-the language model.
+The embedding configuration sets `freeze_language_model: true` to preserve the
+released text component while updating the vision encoder and multimodal
+projector. Set it to `false` to also adapt the language model, for example when
+fine-tuning on text-only data. This increases training memory requirements.
 
 ## Prepare Data
 
@@ -77,13 +64,11 @@ the configured global batch size.
 ## Run Training
 
 Run from the repository root. Replace `<config>` with a filename from the table,
-and replace the checkpoint and training file placeholders:
+and replace the training file placeholder:
 
 ```bash
 uv run --no-sync automodel 'examples/retrieval/nemotron_3_5/<config>' \
   --nproc-per-node 8 \
-  --model.pretrained_model_name_or_path '<path/to/starting-checkpoint>' \
-  --tokenizer.pretrained_model_name_or_path '<path/to/starting-checkpoint>' \
   --dataset.data_dir_list '<path/to/train.json>'
 ```
 

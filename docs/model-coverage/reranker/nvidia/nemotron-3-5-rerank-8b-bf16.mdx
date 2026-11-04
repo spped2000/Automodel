@@ -1,0 +1,40 @@
+---
+title: "Nemotron-3.5-Rerank-8B-BF16"
+description: "Fine-tune the released Nemotron-3.5-Rerank-8B-BF16 checkpoint with NeMo AutoModel on text, image, or combined query-document relevance data."
+slug: model-coverage/reranking-models/nvidia/Nemotron-3.5-Rerank-8B-BF16
+---
+
+[Nemotron-3.5-Rerank-8B-BF16](https://huggingface.co/nvidia/Nemotron-3.5-Rerank-8B-BF16)
+scores each text query together with a document containing an image, text, or both.
+It combines a Pixtral vision encoder, a bidirectional Ministral3 language model,
+and a scoring head. Higher output logits indicate greater relevance.
+
+## Model Reference
+
+### Model Architecture
+
+| Property | Value |
+| --- | --- |
+| **Architecture** | `Mistral3ForSequenceClassification` |
+| AutoModel Backbone | `Mistral3VLBidirectionalForSequenceClassification` |
+| Task | Multimodal reranking |
+| AutoModel Wrapper | `NeMoAutoModelCrossEncoder` |
+| Inputs | A text query paired with an image, text, or combined image-text document |
+| Output | One relevance logit per query-document pair |
+
+## Fine-Tuning
+
+The [8B multimodal reranking example](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/retrieval/nemotron_3_5/rerank_8b_multimodal.yaml)
+updates all model parameters with listwise cross-entropy, including the language
+model. It loads the released NVIDIA checkpoint, including its trained scoring
+head, vision encoder, and projector.
+
+Follow the [fine-tuning README](https://github.com/NVIDIA-NeMo/Automodel/blob/main/examples/retrieval/nemotron_3_5/README.md)
+for the dataset format, dependencies, and launch command. This workflow adapts
+the released model to your data. It does not require an intermediate text-trained
+checkpoint or reproduce the original training pipeline.
+
+The [model card](https://huggingface.co/nvidia/Nemotron-3.5-Rerank-8B-BF16)
+documents inference, input formatting, training data, and evaluation. For
+first-stage candidate retrieval, refer to
+[Nemotron 3.5 Embed 8B](/model-coverage/embedding-models/nvidia/Nemotron-3.5-Embed-8B-BF16).

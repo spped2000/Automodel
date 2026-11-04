@@ -20,8 +20,10 @@ import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 
-from tools.docs.build.coverage_tables import _load_model_doc_catalog
+from tools.docs.build.coverage_tables import _load_model_doc_catalog, _ModelRelease
+from tools.docs.checks import navigation
 from tools.docs.checks.navigation import (
     _validate_internal_links,
     _validate_provider_sections,
@@ -77,6 +79,60 @@ def test_checkpoint_route_uses_metadata_while_preserving_the_source_path(tmp_pat
 
 def test_recipe_backed_model_sizes_have_exact_index_routes_and_one_card():
     _validate_recipe_routes(Path(__file__).resolve().parents[5])
+
+
+@pytest.mark.cpu_only
+@pytest.mark.parametrize("is_navigable", [True, False])
+def test_retrieval_guide_route_requires_navigation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, is_navigable: bool
+) -> None:
+    route = "/recipes-e2e-examples/retrieval-base-models"
+    guide = tmp_path / "docs/guides/retrieval-base-models.mdx"
+    guide.parent.mkdir(parents=True)
+    guide.write_text(
+        f'---\ntitle: "Train Retrieval Models"\nslug: {route.lstrip("/")}\n---\n'
+        "[Base checkpoint](https://huggingface.co/org/Base-1B)\n"
+    )
+    config_path = tmp_path / "docs/fern/docs.yml"
+    config_path.parent.mkdir(parents=True)
+    redirects = [
+        {
+            "source": "/nemo/automodel/model-coverage/embedding-models/org/Base-1B",
+            "destination": f"/nemo/automodel/nightly{route}",
+        }
+    ]
+    redirects.extend(
+        {
+            "source": f"/nemo/automodel/model-coverage/large-language-models/meta/{name}",
+            "destination": "/nemo/automodel/model-coverage/large-language-models/meta/Llama-3.1-8B",
+        }
+        for name in ("Meta-Llama-3.1-8B", "Meta-Llama-3.1-8B-Instruct")
+    )
+    config_path.write_text(yaml.safe_dump({"redirects": redirects}))
+    nav_path = tmp_path / "docs/fern/versions/nightly.yml"
+    nav_path.parent.mkdir(parents=True)
+    nav_path.write_text(
+        yaml.safe_dump(
+            {
+                "navigation": [{"page": "Train Retrieval Models", "path": "../../guides/retrieval-base-models.mdx"}]
+                if is_navigable
+                else []
+            }
+        )
+    )
+    # Supply recipe discovery without requiring a git-history fixture; routing and
+    # navigation still read and validate the actual files above.
+    monkeypatch.setattr(navigation, "_load_model_doc_catalog", lambda _: ({}, set(), []))
+    monkeypatch.setattr(
+        navigation,
+        "_load_model_releases",
+        lambda *_: [_ModelRelease("2026-01-01", "org/Base-1B", "", "Embedding", "recipe.yaml")],
+    )
+    if is_navigable:
+        _validate_recipe_routes(tmp_path)
+    else:
+        with pytest.raises(ValueError, match="Invalid retrieval training guide destination"):
+            _validate_recipe_routes(tmp_path)
 
 
 def test_retired_model_routes_redirect_to_provider_indexes():
